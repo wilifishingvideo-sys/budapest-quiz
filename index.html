@@ -1,0 +1,749 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Budapest Millionaire — 4-Player Quiz Show</title>
+<style>
+/* =========================================================
+   BUDAPEST MILLIONAIRE — DESIGN TOKENS
+   Edit colors here to re-theme the whole game.
+   ========================================================= */
+:root{
+  --night:        #0a0f2e;   /* deep stage blue */
+  --night-2:      #141b4d;   /* panel blue */
+  --night-3:      #1d2766;   /* raised panel */
+  --gold:         #f2bc45;   /* Hungarian gold */
+  --gold-soft:    #ffe9b0;
+  --paprika:      #e0512f;   /* wrong / danger */
+  --danube:       #43c3d4;   /* teal accent */
+  --green:        #46c06f;   /* correct */
+  --ink:          #f6f1e2;   /* main text */
+  --ink-dim:      #b9b9d6;
+  --radius:       14px;
+  --sfx-glow:     0 0 18px rgba(242,188,69,.45);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
+  background:
+    radial-gradient(1200px 600px at 50% -10%, #28349200, #28349255 0%, transparent 60%),
+    radial-gradient(900px 500px at 50% 115%, rgba(242,188,69,.10), transparent 60%),
+    var(--night);
+  color:var(--ink);
+  min-height:100%;
+  overflow-x:hidden;
+}
+button{font-family:inherit;cursor:pointer;border:none}
+button:focus-visible, input:focus-visible{outline:3px solid var(--danube);outline-offset:2px}
+
+/* ---------- Parliament skyline (signature element) ---------- */
+.skyline{
+  position:fixed;left:0;right:0;bottom:0;height:120px;pointer-events:none;z-index:0;
+  opacity:.5;
+}
+.skyline svg{width:100%;height:100%;display:block}
+
+/* ---------- Layout shell ---------- */
+.screen{position:relative;z-index:1;max-width:1180px;margin:0 auto;padding:18px 16px 150px;display:none}
+.screen.active{display:block;animation:fadeUp .45s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+
+/* ---------- Header / title ---------- */
+.title{
+  text-align:center;letter-spacing:.18em;text-transform:uppercase;
+  font-weight:900;color:var(--gold);
+  text-shadow:0 0 24px rgba(242,188,69,.35);
+  font-size:clamp(1.4rem,4vw,2.4rem);
+  margin:8px 0 2px;
+}
+.subtitle{text-align:center;color:var(--ink-dim);letter-spacing:.08em;font-size:.95rem;margin-bottom:18px}
+
+/* ---------- Cards / panels ---------- */
+.panel{
+  background:linear-gradient(180deg,var(--night-3),var(--night-2));
+  border:1px solid rgba(242,188,69,.25);
+  border-radius:var(--radius);
+  padding:18px;
+  box-shadow:0 10px 30px rgba(0,0,0,.35);
+}
+
+/* ---------- Start screen ---------- */
+.start-grid{display:grid;grid-template-columns:1.2fr .8fr;gap:18px;margin-top:14px}
+@media (max-width:820px){.start-grid{grid-template-columns:1fr}}
+.setting-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px dashed rgba(255,255,255,.12)}
+.setting-row:last-child{border-bottom:none}
+.setting-row label{color:var(--ink);font-weight:700}
+.setting-row .hint{display:block;font-weight:400;color:var(--ink-dim);font-size:.8rem;margin-top:2px}
+select,input[type=number]{
+  background:var(--night);color:var(--ink);border:1px solid rgba(242,188,69,.4);
+  border-radius:8px;padding:8px 10px;font-size:1rem;min-width:110px;text-align:center;
+}
+.switch{position:relative;width:54px;height:28px;flex:none}
+.switch input{opacity:0;width:0;height:0}
+.slider-toggle{
+  position:absolute;inset:0;background:#3a3a5e;border-radius:999px;transition:.25s;
+}
+.slider-toggle::before{
+  content:"";position:absolute;width:22px;height:22px;left:3px;top:3px;border-radius:50%;
+  background:var(--ink);transition:.25s;
+}
+.switch input:checked + .slider-toggle{background:var(--gold)}
+.switch input:checked + .slider-toggle::before{transform:translateX(26px);background:var(--night)}
+
+.btn{
+  border-radius:999px;padding:13px 26px;font-size:1.05rem;font-weight:900;letter-spacing:.08em;
+  text-transform:uppercase;transition:transform .15s, box-shadow .15s, filter .15s;
+}
+.btn:hover{transform:translateY(-2px);filter:brightness(1.08)}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none;box-shadow:none}
+.btn-gold{background:linear-gradient(180deg,#ffd97a,var(--gold));color:#3a2a00;box-shadow:var(--sfx-glow)}
+.btn-ghost{background:transparent;color:var(--ink);border:2px solid rgba(255,255,255,.35)}
+.btn-red{background:linear-gradient(180deg,#ff7b5d,var(--paprika));color:#fff}
+.btn-teal{background:linear-gradient(180deg,#7adfeb,var(--danube));color:#04323a}
+.btn-green{background:linear-gradient(180deg,#7ce39e,var(--green));color:#03301a}
+.center{text-align:center}
+
+.highscores h3{color:var(--gold);letter-spacing:.1em;text-transform:uppercase;font-size:.95rem;margin-bottom:10px}
+.highscores ol{list-style:none;counter-reset:hs}
+.highscores li{
+  counter-increment:hs;display:flex;justify-content:space-between;padding:7px 4px;
+  border-bottom:1px dashed rgba(255,255,255,.1);font-size:.95rem;
+}
+.highscores li::before{content:counter(hs) ".";color:var(--gold);margin-right:8px;font-weight:900}
+.highscores .empty{color:var(--ink-dim);font-style:italic}
+
+/* ---------- Top bar in game ---------- */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.progress-wrap{flex:1;min-width:220px}
+.progress-label{font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:5px;display:flex;justify-content:space-between}
+.progress-bar{height:10px;background:rgba(255,255,255,.12);border-radius:999px;overflow:hidden}
+.progress-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--danube),var(--gold));transition:width .5s ease;border-radius:999px}
+
+.timer{
+  width:74px;height:74px;border-radius:50%;flex:none;position:relative;
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem;font-weight:900;color:var(--ink);
+  background:conic-gradient(var(--gold) calc(var(--t,1)*360deg), rgba(255,255,255,.1) 0);
+}
+.timer::after{content:"";position:absolute;inset:7px;border-radius:50%;background:var(--night-2)}
+.timer span{position:relative;z-index:1}
+.timer.warning{animation:pulse .6s infinite alternate}
+.timer.warning span{color:var(--paprika)}
+@keyframes pulse{from{transform:scale(1)}to{transform:scale(1.07)}}
+
+/* ---------- Question + hexagon answers (Millionaire style) ---------- */
+.question-box{
+  margin:6px auto 16px;max-width:880px;text-align:center;position:relative;
+  background:linear-gradient(180deg,var(--night-3),var(--night-2));
+  border:2px solid var(--gold);
+  clip-path:polygon(3% 0,97% 0,100% 50%,97% 100%,3% 100%,0 50%);
+  padding:24px 56px;min-height:96px;display:flex;flex-direction:column;justify-content:center;
+  animation:qIn .5s ease;
+}
+@keyframes qIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+.q-meta{font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;color:var(--danube);margin-bottom:8px}
+.q-text{font-size:clamp(1.05rem,2.4vw,1.45rem);font-weight:700;line-height:1.35}
+
+.answers{display:grid;grid-template-columns:1fr 1fr;gap:12px;max-width:880px;margin:0 auto 18px}
+@media (max-width:640px){.answers{grid-template-columns:1fr}.question-box{padding:18px 30px;clip-path:none;border-radius:var(--radius)}}
+.answer{
+  position:relative;text-align:left;color:var(--ink);font-size:1.02rem;font-weight:600;
+  background:linear-gradient(180deg,var(--night-3),var(--night-2));
+  border:1.5px solid rgba(242,188,69,.55);
+  clip-path:polygon(4% 0,96% 0,100% 50%,96% 100%,4% 100%,0 50%);
+  padding:14px 34px;transition:background .2s, transform .15s;
+  display:flex;gap:10px;align-items:center;min-height:58px;
+}
+@media (max-width:640px){.answer{clip-path:none;border-radius:10px;padding:13px 16px}}
+.answer:hover{background:linear-gradient(180deg,#27307c,#1c2566);transform:translateY(-1px)}
+.answer .letter{color:var(--gold);font-weight:900;flex:none}
+.answer.correct{
+  background:linear-gradient(180deg,#2f8f55,#1f6b3d);border-color:var(--green);
+  animation:flashCorrect .9s ease;
+}
+.answer.dimmed{opacity:.4}
+@keyframes flashCorrect{
+  0%,40%{background:linear-gradient(180deg,#ffd97a,var(--gold));color:#3a2a00}
+  100%{background:linear-gradient(180deg,#2f8f55,#1f6b3d);color:var(--ink)}
+}
+
+/* ---------- Scoreboard ---------- */
+.scoreboard{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+@media (max-width:820px){.scoreboard{grid-template-columns:repeat(2,1fr)}}
+.player{
+  text-align:center;padding:14px 8px 12px;position:relative;
+  background:linear-gradient(180deg,var(--night-3),var(--night-2));
+  border:1px solid rgba(255,255,255,.15);border-radius:var(--radius);
+  transition:border-color .25s, box-shadow .25s;
+}
+.player.leader{border-color:var(--gold);box-shadow:var(--sfx-glow)}
+.player.leader::after{content:"👑";position:absolute;top:-14px;left:50%;transform:translateX(-50%);font-size:1.2rem}
+.player .avatar{font-size:2rem;line-height:1}
+.player .name{font-weight:900;letter-spacing:.06em;margin:4px 0 2px}
+.player .score{font-size:1.5rem;font-weight:900;color:var(--gold);transition:transform .2s}
+.player .score.bump{animation:bump .5s ease}
+@keyframes bump{30%{transform:scale(1.35);color:var(--gold-soft)}}
+.player .meter{height:6px;border-radius:999px;background:rgba(255,255,255,.12);margin:8px 10px 10px;overflow:hidden}
+.player .meter i{display:block;height:100%;width:0%;background:linear-gradient(90deg,var(--danube),var(--gold));transition:width .5s}
+.player .award{
+  width:calc(100% - 16px);margin:0 8px;padding:9px 4px;border-radius:9px;font-weight:900;
+  background:linear-gradient(180deg,#7ce39e,var(--green));color:#03301a;letter-spacing:.04em;
+  transition:transform .15s, filter .15s;font-size:.9rem;
+}
+.player .award:hover:not(:disabled){transform:translateY(-1px);filter:brightness(1.08)}
+.player .award:disabled{opacity:.3;cursor:not-allowed}
+.player .awarded-tag{font-size:.72rem;color:var(--green);font-weight:700;height:14px;margin-top:4px}
+.bonus-pop{
+  position:absolute;top:6px;right:8px;background:var(--danube);color:#04323a;font-weight:900;
+  font-size:.7rem;padding:3px 7px;border-radius:999px;animation:fadeUp .4s ease;
+}
+
+/* ---------- Host controls ---------- */
+.host{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;align-items:center;margin-bottom:14px}
+.host .btn{font-size:.92rem;padding:11px 20px}
+
+/* ---------- Audio dock ---------- */
+.audio-dock{
+  display:flex;gap:16px;flex-wrap:wrap;align-items:center;justify-content:center;
+  padding:12px 16px;margin:0 auto;max-width:880px;
+}
+.audio-group{display:flex;align-items:center;gap:8px;font-size:.85rem;color:var(--ink-dim)}
+input[type=range]{accent-color:var(--gold);width:110px}
+.icon-btn{
+  background:var(--night-3);border:1px solid rgba(242,188,69,.4);color:var(--ink);
+  border-radius:999px;width:42px;height:42px;font-size:1.1rem;transition:filter .15s;
+}
+.icon-btn:hover{filter:brightness(1.2)}
+
+/* ---------- Winner screen ---------- */
+.podium{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;max-width:760px;margin:24px auto;align-items:end}
+@media (max-width:640px){.podium{grid-template-columns:repeat(2,1fr);align-items:stretch}}
+.podium .place{
+  text-align:center;padding:16px 8px;border-radius:var(--radius);
+  background:linear-gradient(180deg,var(--night-3),var(--night-2));
+  border:1px solid rgba(255,255,255,.15);
+  animation:fadeUp .6s ease both;
+}
+.podium .place:nth-child(1){border-color:var(--gold);box-shadow:var(--sfx-glow);animation-delay:.5s}
+.podium .place:nth-child(2){animation-delay:.35s}
+.podium .place:nth-child(3){animation-delay:.2s}
+.podium .place:nth-child(4){animation-delay:.05s}
+.podium .medal{font-size:2rem}
+.podium .p-name{font-weight:900;font-size:1.1rem;margin:4px 0}
+.podium .p-score{color:var(--gold);font-weight:900;font-size:1.4rem}
+.newrecord{color:var(--danube);font-weight:900;letter-spacing:.1em;text-transform:uppercase;margin-top:10px}
+
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:50}
+.footer-note{text-align:center;color:var(--ink-dim);font-size:.78rem;margin-top:18px;letter-spacing:.05em}
+</style>
+</head>
+<body>
+
+<!-- Parliament silhouette: the game's Budapest signature -->
+<div class="skyline" aria-hidden="true">
+  <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+    <path fill="#070b22" d="M0 120 L0 95 L40 95 L40 80 L60 80 L60 95 L120 95 L120 70 L135 70 L140 55 L145 70 L160 70 L160 95 L230 95 L230 75 L250 75 L250 60 L258 45 L266 60 L266 75 L290 75 L290 95 L360 95 L360 65 L380 65 L385 50 L390 65 L410 65 L410 95 L470 95 L470 78 L500 78 L510 60 L520 40 L530 25 L540 12 L545 4 L550 12 L560 25 L570 40 L580 60 L590 78 L620 78 L620 95 L680 95 L680 65 L700 65 L705 50 L710 65 L730 65 L730 95 L800 95 L800 75 L824 75 L832 58 L840 75 L864 75 L864 95 L930 95 L930 70 L945 70 L950 55 L955 70 L970 70 L970 95 L1040 95 L1040 80 L1060 80 L1060 95 L1110 95 L1110 72 L1125 72 L1130 58 L1135 72 L1150 72 L1150 95 L1200 95 L1200 120 Z"/>
+  </svg>
+</div>
+
+<!-- ================= START SCREEN ================= -->
+<section class="screen active" id="screen-start">
+  <h1 class="title">★ Budapest Millionaire ★</h1>
+  <p class="subtitle">A 4-player quiz show on the city of bridges, baths &amp; paprika</p>
+
+  <div class="start-grid">
+    <div class="panel">
+      <h3 style="color:var(--gold);letter-spacing:.1em;text-transform:uppercase;font-size:.95rem;margin-bottom:6px">Game settings</h3>
+
+      <div class="setting-row">
+        <label>Points per question
+          <span class="hint">Awarded for each correct answer</span>
+        </label>
+        <input type="number" id="set-points" value="100" min="10" max="1000" step="10">
+      </div>
+
+      <div class="setting-row">
+        <label>Timer per question
+          <span class="hint">Countdown for answering</span>
+        </label>
+        <select id="set-timer">
+          <option value="0">No timer</option>
+          <option value="15">15 seconds</option>
+          <option value="30" selected>30 seconds</option>
+          <option value="45">45 seconds</option>
+          <option value="60">60 seconds</option>
+        </select>
+      </div>
+
+      <div class="setting-row">
+        <label>Fastest finger bonus
+          <span class="hint">+50% points if awarded in the first half of the timer</span>
+        </label>
+        <span class="switch">
+          <input type="checkbox" id="set-fastest" checked>
+          <span class="slider-toggle"></span>
+        </span>
+      </div>
+
+      <div class="setting-row">
+        <label>Shuffle questions
+          <span class="hint">Random order for replay variety</span>
+        </label>
+        <span class="switch">
+          <input type="checkbox" id="set-shuffle" checked>
+          <span class="slider-toggle"></span>
+        </span>
+      </div>
+
+      <div class="center" style="margin-top:18px">
+        <button class="btn btn-gold" id="btn-start">▶ Start the show</button>
+      </div>
+    </div>
+
+    <div class="panel highscores">
+      <h3>🏆 Hall of Fame</h3>
+      <ol id="highscore-list"></ol>
+      <div class="center" style="margin-top:12px">
+        <button class="btn btn-ghost" id="btn-clear-scores" style="font-size:.8rem;padding:8px 16px">Clear records</button>
+      </div>
+    </div>
+  </div>
+  <p class="footer-note">Players: Sandra · Fotis · Mocina · Lloli — the host reads each question aloud and awards points.</p>
+</section>
+
+<!-- ================= GAME SCREEN ================= -->
+<section class="screen" id="screen-game">
+  <h1 class="title" style="font-size:clamp(1.1rem,3vw,1.6rem)">★ Budapest Millionaire ★</h1>
+
+  <div class="topbar">
+    <div class="progress-wrap">
+      <div class="progress-label">
+        <span id="progress-text">Question 1 / 20</span>
+        <span id="difficulty-text"></span>
+      </div>
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill"></div></div>
+    </div>
+    <div class="timer" id="timer" style="--t:1"><span id="timer-num">30</span></div>
+  </div>
+
+  <!-- Scoreboard -->
+  <div class="scoreboard" id="scoreboard"></div>
+
+  <!-- Question -->
+  <div class="question-box">
+    <div class="q-meta" id="q-meta">Level 1 · Recall</div>
+    <div class="q-text" id="q-text">Question text…</div>
+  </div>
+  <div class="answers" id="answers"></div>
+
+  <!-- Host controls -->
+  <div class="host">
+    <button class="btn btn-teal" id="btn-reveal">💡 Reveal answer</button>
+    <button class="btn btn-red"  id="btn-wrong">✖ Wrong answer</button>
+    <button class="btn btn-gold" id="btn-next" disabled>Next question ➜</button>
+    <button class="btn btn-ghost" id="btn-restart">↺ Restart</button>
+  </div>
+
+  <!-- Audio dock -->
+  <div class="audio-dock panel">
+    <div class="audio-group">
+      <button class="icon-btn" id="btn-sound" title="Sound effects on/off" aria-label="Toggle sound effects">🔊</button>
+      <span>Effects</span>
+      <input type="range" id="vol-sfx" min="0" max="100" value="70" aria-label="Sound effects volume">
+    </div>
+    <div class="audio-group">
+      <button class="icon-btn" id="btn-music" title="Background music play/pause" aria-label="Toggle background music">▶</button>
+      <span>Music</span>
+      <input type="range" id="vol-music" min="0" max="100" value="35" aria-label="Music volume">
+    </div>
+  </div>
+</section>
+
+<!-- ================= WINNER SCREEN ================= -->
+<section class="screen" id="screen-winner">
+  <h1 class="title">🎉 Final Results 🎉</h1>
+  <p class="subtitle">Köszönjük! Thanks for playing in Budapest</p>
+  <div class="podium" id="podium"></div>
+  <p class="center newrecord" id="newrecord" style="display:none">★ New Hall-of-Fame record! ★</p>
+  <div class="center" style="margin-top:20px">
+    <button class="btn btn-gold" id="btn-play-again">↺ Play again</button>
+    <button class="btn btn-ghost" id="btn-to-menu" style="margin-left:8px">Main menu</button>
+  </div>
+</section>
+
+<canvas id="confetti"></canvas>
+
+<script>
+/* =========================================================
+   1. GAME DATA — edit or add questions here.
+   Each question: text, options[4], correct (0-3 index),
+   dok (1 = recall, 2 = connections/analysis)
+   ========================================================= */
+const QUESTIONS = [
+  {dok:1, text:"Which river separates the historic districts of Buda and Pest?",
+   options:["The Tisza","The Danube","The Drava","The Vltava"], correct:1},
+  {dok:1, text:"On which side of the river does the Hungarian Parliament Building stand?",
+   options:["Buda (hilly side)","Pest (flat side)","Margaret Island","Óbuda"], correct:1},
+  {dok:1, text:"What was the first permanent bridge built across the Danube in Budapest (opened 1849)?",
+   options:["Liberty Bridge","Elisabeth Bridge","Széchenyi Chain Bridge","Margaret Bridge"], correct:2},
+  {dok:1, text:"Which famous thermal bath complex is located in Budapest's City Park (Városliget)?",
+   options:["Gellért Baths","Rudas Baths","Király Baths","Széchenyi Baths"], correct:3},
+  {dok:1, text:"What is the official currency of Hungary?",
+   options:["Euro","Forint","Krona","Zloty"], correct:1},
+  {dok:1, text:"Which hill is crowned by Buda Castle and the Castle District?",
+   options:["Gellért Hill","Castle Hill (Várhegy)","Rose Hill","János Hill"], correct:1},
+  {dok:1, text:"Which spice gives Hungarian goulash its signature red color and flavor?",
+   options:["Saffron","Cayenne","Paprika","Sumac"], correct:2},
+  {dok:1, text:"Budapest's Metro Line M1 (the 'Millennium Underground') holds which record?",
+   options:["Deepest metro in Europe","Oldest underground line in continental Europe","Longest metro line in the EU","First driverless metro"], correct:1},
+  {dok:1, text:"What is the name of the famous fried dough street food, usually topped with sour cream and cheese?",
+   options:["Lángos","Pogácsa","Rétes","Palacsinta"], correct:0},
+  {dok:1, text:"Which Budapest square was built in 1896 to celebrate Hungary's 1000th anniversary?",
+   options:["Deák Square","Heroes' Square","Kossuth Square","Vörösmarty Square"], correct:1},
+  {dok:1, text:"The Great Market Hall (Nagy Vásárcsarnok) stands at the Pest end of which bridge?",
+   options:["Chain Bridge","Margaret Bridge","Liberty Bridge","Elisabeth Bridge"], correct:2},
+  {dok:1, text:"What is the sweet, spiral 'chimney cake' sold at Budapest markets called?",
+   options:["Kürtőskalács","Dobos torta","Bejgli","Zserbó"], correct:0},
+  {dok:1, text:"Which island in the Danube is Budapest's favorite green recreation spot, car-free for visitors?",
+   options:["Csepel Island","Margaret Island","Óbuda Island","Hajógyári Island"], correct:1},
+  {dok:1, text:"Which scenic tram line runs along the Pest riverbank, passing the Parliament?",
+   options:["Tram 2","Tram 4","Tram 6","Tram 47"], correct:0},
+  {dok:1, text:"The inventor of the world-famous Rubik's Cube, Ernő Rubik, was born in which city?",
+   options:["Vienna","Debrecen","Budapest","Szeged"], correct:2},
+  {dok:1, text:"The Dohány Street Synagogue in District VII holds which European record?",
+   options:["Oldest synagogue in Europe","Largest synagogue in Europe","Tallest synagogue in Europe","First synagogue with an organ"], correct:1},
+  {dok:2, text:"Fisherman's Bastion has exactly seven towers. What do they symbolize?",
+   options:["The seven hills of Buda","The seven Magyar tribes that settled the region","Seven Hungarian kings","The seven bridges of Budapest"], correct:1},
+  {dok:2, text:"St. Stephen's Basilica and the Parliament are both exactly 96 meters tall. Why 96?",
+   options:["It was the legal height limit","It honors the year 896, the Magyar conquest of the homeland","96 saints are honored inside","It matches the Danube's width in meters ÷ 10"], correct:1},
+  {dok:2, text:"Buda, Pest and Óbuda officially merged into one city called Budapest in which year?",
+   options:["1849","1867","1873","1896"], correct:2},
+  {dok:2, text:"According to popular Hungarian tradition, why do many locals avoid clinking beer glasses?",
+   options:["It is considered bad luck for the brewer","A legend ties it to the executed heroes of the 1848 revolution","Beer foam is sacred in folk culture","An old law once banned loud toasts"], correct:1},
+  {dok:2, text:"The 'Shoes on the Danube Bank' memorial near the Parliament commemorates…",
+   options:["Fishermen lost in the great flood of 1838","Victims shot into the river during World War II","Workers who built the Chain Bridge","Refugees of the 1956 uprising"], correct:1},
+  {dok:2, text:"Ruin bars like Szimpla Kert became famous in District VII. What were these venues originally?",
+   options:["Abandoned pre-war buildings and courtyards","Decommissioned metro stations","Old thermal bath houses","Former royal stables"], correct:0},
+  {dok:2, text:"The Citadella fortress on Gellért Hill was originally built by the Habsburgs in 1854 mainly to…",
+   options:["Defend against Ottoman attacks","Watch over the city after the 1848–49 revolution","Protect river trade from pirates","House the royal treasury"], correct:1},
+  {dok:2, text:"Unicum, a classic Budapest drink served as an aperitif or digestif, is best described as…",
+   options:["A sweet dessert wine","A herbal bitter liqueur made from 40+ herbs","A sparkling fruit brandy","A honey-fermented mead"], correct:1},
+];
+
+/* =========================================================
+   2. PLAYERS — edit names/avatars here.
+   ========================================================= */
+const PLAYERS = [
+  {name:"Sandra", avatar:"🌷"},
+  {name:"Fotis",  avatar:"👨‍🍳"},
+  {name:"Mocina", avatar:"🦊"},
+  {name:"Lloli",  avatar:"🎀"},
+];
+
+/* =========================================================
+   3. STATE
+   ========================================================= */
+const state = {
+  order:[], qIndex:0, scores:[0,0,0,0],
+  awarded:new Set(),       // players already awarded this question
+  revealed:false,
+  pointsPerQ:100, timerLen:30, fastest:true, shuffle:true,
+  timeLeft:0, timerId:null,
+  soundOn:true, sfxVol:.7, musicVol:.35, musicOn:false,
+};
+const HS_KEY = "budapestMillionaireHighScores";
+const $ = id => document.getElementById(id);
+
+/* =========================================================
+   4. AUDIO ENGINE (Web Audio API — no external files)
+   ========================================================= */
+let actx=null, musicGain=null, sfxGain=null, musicTimer=null, musicStep=0;
+function audioInit(){
+  if(actx) return;
+  actx = new (window.AudioContext||window.webkitAudioContext)();
+  sfxGain = actx.createGain();   sfxGain.gain.value = state.sfxVol;   sfxGain.connect(actx.destination);
+  musicGain = actx.createGain(); musicGain.gain.value = state.musicVol; musicGain.connect(actx.destination);
+}
+function tone(freq, dur, type="sine", when=0, gain=1, dest){
+  if(!state.soundOn && dest!==musicGain) return;
+  audioInit();
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type=type; o.frequency.value=freq;
+  g.gain.setValueAtTime(0.0001, actx.currentTime+when);
+  g.gain.exponentialRampToValueAtTime(gain, actx.currentTime+when+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001, actx.currentTime+when+dur);
+  o.connect(g); g.connect(dest||sfxGain);
+  o.start(actx.currentTime+when); o.stop(actx.currentTime+when+dur+0.05);
+}
+const sfx = {
+  correct(){ [523,659,784,1047].forEach((f,i)=>tone(f,.35,"triangle",i*.09,.9)); },
+  wrong(){ tone(180,.5,"sawtooth",0,.7); tone(120,.55,"sawtooth",.05,.7); },
+  reveal(){ for(let i=0;i<8;i++) tone(300+i*90,.12,"square",i*.05,.35); },
+  tick(){ tone(900,.06,"square",0,.25); },
+  winner(){ [523,523,659,784,1047,784,1047].forEach((f,i)=>tone(f,.3,"triangle",i*.16,.9)); },
+  bonus(){ tone(1200,.15,"sine",0,.7); tone(1600,.2,"sine",.1,.7); },
+};
+/* Simple looping csárdás-flavored arpeggio for background music */
+const MUSIC_SEQ = [220,277,330,440,330,277, 247,311,370,494,370,311];
+function musicTickFn(){
+  const f = MUSIC_SEQ[musicStep % MUSIC_SEQ.length];
+  tone(f,.32,"triangle",0,.5,musicGain);
+  if(musicStep%3===0) tone(f/2,.6,"sine",0,.35,musicGain);
+  musicStep++;
+}
+function musicToggle(){
+  audioInit();
+  state.musicOn = !state.musicOn;
+  $("btn-music").textContent = state.musicOn ? "⏸" : "▶";
+  if(state.musicOn){ musicTimer=setInterval(musicTickFn, 340); }
+  else { clearInterval(musicTimer); }
+}
+
+/* =========================================================
+   5. HIGH SCORES (localStorage)
+   ========================================================= */
+function loadScores(){ try{return JSON.parse(localStorage.getItem(HS_KEY))||[]}catch(e){return[]} }
+function saveScore(name, score){
+  const list = loadScores();
+  list.push({name, score, date:new Date().toLocaleDateString()});
+  list.sort((a,b)=>b.score-a.score);
+  localStorage.setItem(HS_KEY, JSON.stringify(list.slice(0,5)));
+}
+function renderScores(){
+  const list = loadScores(), ol = $("highscore-list");
+  ol.innerHTML = list.length
+    ? list.map(s=>`<li><span>${s.name} <small style="color:var(--ink-dim)">${s.date}</small></span><strong style="color:var(--gold)">${s.score}</strong></li>`).join("")
+    : `<li class="empty">No records yet — play the first game!</li>`;
+}
+
+/* =========================================================
+   6. GAME FLOW
+   ========================================================= */
+function showScreen(id){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  $(id).classList.add("active");
+}
+function shuffleArr(a){ for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+
+function startGame(){
+  audioInit();
+  state.pointsPerQ = Math.max(10, parseInt($("set-points").value)||100);
+  state.timerLen   = parseInt($("set-timer").value);
+  state.fastest    = $("set-fastest").checked;
+  state.shuffle    = $("set-shuffle").checked;
+  state.order = QUESTIONS.map((_,i)=>i);
+  if(state.shuffle) shuffleArr(state.order);
+  state.qIndex = 0; state.scores=[0,0,0,0];
+  buildScoreboard();
+  showScreen("screen-game");
+  loadQuestion();
+}
+
+function buildScoreboard(){
+  $("scoreboard").innerHTML = PLAYERS.map((p,i)=>`
+    <div class="player" id="player-${i}">
+      <div class="avatar">${p.avatar}</div>
+      <div class="name">${p.name}</div>
+      <div class="score" id="score-${i}">0</div>
+      <div class="meter"><i id="meter-${i}"></i></div>
+      <button class="award" id="award-${i}" onclick="awardPoints(${i})">✓ Correct</button>
+      <div class="awarded-tag" id="tag-${i}"></div>
+    </div>`).join("");
+}
+
+function loadQuestion(){
+  const q = QUESTIONS[state.order[state.qIndex]];
+  state.awarded = new Set(); state.revealed = false;
+
+  $("progress-text").textContent = `Question ${state.qIndex+1} / ${state.order.length}`;
+  $("progress-fill").style.width = `${(state.qIndex)/state.order.length*100}%`;
+  $("difficulty-text").textContent = q.dok===1 ? "DOK 1 · Recall" : "DOK 2 · Connections";
+  $("q-meta").textContent = q.dok===1 ? "Foundational knowledge" : "Think it through";
+  $("q-text").textContent = q.text;
+
+  // Re-trigger entry animation
+  const box = document.querySelector(".question-box");
+  box.style.animation="none"; void box.offsetWidth; box.style.animation="";
+
+  $("answers").innerHTML = q.options.map((opt,i)=>`
+    <button class="answer" id="ans-${i}" onclick="hostRevealVia(${i})">
+      <span class="letter">${"ABCD"[i]}:</span> <span>${opt}</span>
+    </button>`).join("");
+
+  PLAYERS.forEach((_,i)=>{
+    $(`award-${i}`).disabled=false;
+    $(`tag-${i}`).textContent="";
+  });
+  $("btn-next").disabled = true;
+  sfx.reveal();
+  startTimer();
+}
+
+/* ---------- Timer ---------- */
+function startTimer(){
+  clearInterval(state.timerId);
+  const t = $("timer");
+  if(state.timerLen===0){ t.style.display="none"; return; }
+  t.style.display="flex";
+  state.timeLeft = state.timerLen;
+  updateTimerUI();
+  state.timerId = setInterval(()=>{
+    state.timeLeft--;
+    updateTimerUI();
+    if(state.timeLeft<=5 && state.timeLeft>0) sfx.tick();
+    if(state.timeLeft<=0){
+      clearInterval(state.timerId);
+      sfx.wrong();
+      revealAnswer(); // time's up → show the answer
+    }
+  },1000);
+}
+function updateTimerUI(){
+  $("timer-num").textContent = state.timeLeft;
+  $("timer").style.setProperty("--t", state.timeLeft/state.timerLen);
+  $("timer").classList.toggle("warning", state.timeLeft<=5);
+}
+
+/* ---------- Host actions ---------- */
+function hostRevealVia(i){
+  // Clicking any answer tile also reveals (handy on touch devices)
+  if(!state.revealed) revealAnswer();
+}
+function revealAnswer(){
+  if(state.revealed) return;
+  state.revealed = true;
+  clearInterval(state.timerId);
+  const q = QUESTIONS[state.order[state.qIndex]];
+  q.options.forEach((_,i)=>{
+    const el=$(`ans-${i}`);
+    el.classList.add(i===q.correct ? "correct" : "dimmed");
+  });
+  sfx.reveal();
+  $("btn-next").disabled = false;
+}
+function awardPoints(i){
+  if(state.awarded.has(i)) return;
+  state.awarded.add(i);
+  let pts = state.pointsPerQ, bonus=0;
+
+  // Fastest finger: awarded while more than half the timer remains
+  if(state.fastest && state.timerLen>0 && !state.revealed && state.timeLeft > state.timerLen/2){
+    bonus = Math.round(state.pointsPerQ/2);
+    sfx.bonus();
+    const card=$(`player-${i}`);
+    const pop=document.createElement("div");
+    pop.className="bonus-pop"; pop.textContent=`⚡ +${bonus}`;
+    card.appendChild(pop); setTimeout(()=>pop.remove(),1600);
+  }
+  state.scores[i]+= pts+bonus;
+  sfx.correct();
+  $(`award-${i}`).disabled = true;
+  $(`tag-${i}`).textContent = bonus? `+${pts}+${bonus} ⚡` : `+${pts}`;
+  const sc=$(`score-${i}`);
+  sc.textContent = state.scores[i];
+  sc.classList.remove("bump"); void sc.offsetWidth; sc.classList.add("bump");
+  updateMeters();
+  $("btn-next").disabled = false;
+}
+function wrongAnswer(){ sfx.wrong(); }
+function updateMeters(){
+  const max = Math.max(...state.scores, 1);
+  state.scores.forEach((s,i)=>{
+    $(`meter-${i}`).style.width = `${s/max*100}%`;
+    $(`player-${i}`).classList.toggle("leader", s===max && s>0);
+  });
+}
+function nextQuestion(){
+  clearInterval(state.timerId);
+  state.qIndex++;
+  if(state.qIndex >= state.order.length){ endGame(); }
+  else loadQuestion();
+}
+
+/* ---------- End of game ---------- */
+function endGame(){
+  clearInterval(state.timerId);
+  $("progress-fill").style.width = "100%";
+  const ranking = PLAYERS.map((p,i)=>({...p, score:state.scores[i]}))
+                         .sort((a,b)=>b.score-a.score);
+  const medals = ["🥇","🥈","🥉","🎖"];
+  $("podium").innerHTML = ranking.map((p,i)=>`
+    <div class="place">
+      <div class="medal">${medals[i]}</div>
+      <div class="avatar" style="font-size:2.2rem">${p.avatar}</div>
+      <div class="p-name">${p.name}</div>
+      <div class="p-score">${p.score} pts</div>
+      <div style="color:var(--ink-dim);font-size:.8rem">${["Champion","Runner-up","3rd place","4th place"][i]}</div>
+    </div>`).join("");
+
+  // High score check
+  const prev = loadScores();
+  const isRecord = ranking[0].score>0 && (prev.length<5 || ranking[0].score > prev[prev.length-1].score || prev.length===0);
+  $("newrecord").style.display = isRecord ? "block" : "none";
+  if(ranking[0].score>0) saveScore(ranking[0].name, ranking[0].score);
+
+  showScreen("screen-winner");
+  sfx.winner();
+  launchConfetti();
+}
+
+/* =========================================================
+   7. CONFETTI
+   ========================================================= */
+let confettiAnim=null;
+function launchConfetti(){
+  const c=$("confetti"), ctx=c.getContext("2d");
+  c.width=innerWidth; c.height=innerHeight;
+  const colors=["#f2bc45","#e0512f","#43c3d4","#46c06f","#f6f1e2"];
+  const bits=Array.from({length:160},()=>({
+    x:Math.random()*c.width, y:-20-Math.random()*c.height*.5,
+    r:4+Math.random()*6, vy:2+Math.random()*3.5, vx:-1.5+Math.random()*3,
+    rot:Math.random()*Math.PI, vr:-.1+Math.random()*.2,
+    color:colors[Math.floor(Math.random()*colors.length)],
+  }));
+  let frames=0;
+  cancelAnimationFrame(confettiAnim);
+  (function draw(){
+    ctx.clearRect(0,0,c.width,c.height);
+    bits.forEach(b=>{
+      b.x+=b.vx; b.y+=b.vy; b.rot+=b.vr;
+      ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(b.rot);
+      ctx.fillStyle=b.color; ctx.fillRect(-b.r/2,-b.r/3,b.r,b.r*.66); ctx.restore();
+    });
+    if(++frames<420) confettiAnim=requestAnimationFrame(draw);
+    else ctx.clearRect(0,0,c.width,c.height);
+  })();
+}
+
+/* =========================================================
+   8. WIRING
+   ========================================================= */
+$("btn-start").onclick = startGame;
+$("btn-reveal").onclick = revealAnswer;
+$("btn-wrong").onclick = wrongAnswer;
+$("btn-next").onclick = nextQuestion;
+$("btn-restart").onclick = ()=>{ if(confirm("Restart the game? All scores will reset.")) startGame(); };
+$("btn-play-again").onclick = startGame;
+$("btn-to-menu").onclick = ()=>{ renderScores(); showScreen("screen-start"); };
+$("btn-clear-scores").onclick = ()=>{ if(confirm("Delete all saved records?")){ localStorage.removeItem(HS_KEY); renderScores(); } };
+
+$("btn-sound").onclick = ()=>{
+  state.soundOn=!state.soundOn;
+  $("btn-sound").textContent = state.soundOn? "🔊":"🔇";
+};
+$("btn-music").onclick = musicToggle;
+$("vol-sfx").oninput   = e=>{ state.sfxVol=e.target.value/100; if(sfxGain) sfxGain.gain.value=state.sfxVol; };
+$("vol-music").oninput = e=>{ state.musicVol=e.target.value/100; if(musicGain) musicGain.gain.value=state.musicVol; };
+
+window.addEventListener("resize", ()=>{ const c=$("confetti"); c.width=innerWidth; c.height=innerHeight; });
+
+renderScores();
+</script>
+</body>
+</html>
